@@ -54,26 +54,28 @@ func main() {
 		}
 	}
 	messages := slices.Clone(baseMessages)
+	name := "Agent"
 
 	{
 		fmt.Print("\u001b[92mYAA\u001b[0m: Getting the agent ready... ")
 		for range 3 {
 			resp, err := queryStruct[struct {
-				UA string `json:"ua"`
-			}](ctx, client, model, messages, "Quickly generate an HTTP user-agent that includes your name.")
+				Name string `json:"name"`
+				UA   string `json:"ua"`
+			}](ctx, client, model, messages, "Identify yourself, and also quickly generate an HTTP user-agent that includes your name.")
 
 			if err != nil {
 				logger.WithError(err).Debug("failed to request UA")
 			}
-			if resp.UA != "" {
+			if resp.Name != "" && resp.UA != "" {
+				name = resp.Name
 				tools.FetchUserAgent = resp.UA
-				logger.WithField("ua", resp.UA).Debug("set useragent")
+				logger.WithField("id", resp).Debug("set identity")
 				break
 			}
 		}
 		fmt.Print("\u001b[2K\r")
-		fmt.Printf("\u001b[92mYAA\u001b[0m: Model: %v\n", model)
-		fmt.Printf("\u001b[92mYAA\u001b[0m: UA: %v\n", tools.FetchUserAgent)
+		fmt.Printf("\u001b[92mYAA\u001b[0m: Name: %v | Model: %v | UA: %v\n", name, model, tools.FetchUserAgent)
 		fmt.Print("\u001b[92mYAA\u001b[0m: Reset history with !clear, retry last prompt with !retry\n")
 		fmt.Println()
 	}
@@ -136,7 +138,7 @@ func main() {
 
 				if agentFinishedThinking {
 					if !agentSpoke {
-						fmt.Print("\u001b[93mAgent\u001b[0m: ")
+						fmt.Printf("\u001b[93m%v\u001b[0m: ", name)
 						agentSpoke = true
 					}
 					fmt.Print(cr.Message.Content)
