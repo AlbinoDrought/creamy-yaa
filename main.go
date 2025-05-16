@@ -3,8 +3,10 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -16,6 +18,11 @@ import (
 var logger = logrus.New()
 
 func main() {
+	if os.Getenv("YAA_DEBUG") == "true" {
+		logger.SetLevel(logrus.DebugLevel)
+		logger.Debug("debug mode")
+	}
+
 	ctx := context.Background()
 
 	model := os.Getenv("OLLAMA_MODEL")
@@ -35,15 +42,40 @@ func main() {
 
 	scanner := bufio.NewScanner(os.Stdin)
 
-	messages := []api.Message{}
+	baseMessages := []api.Message{} // we reset to this on !clear
 	{
 		system := os.Getenv("OLLAMA_SYSTEM")
 		if system != "" {
-			messages = append(messages, api.Message{
+			system = strings.ReplaceAll(system, `%YAA_DATE%`, time.Now().Format(time.RFC3339))
+			baseMessages = append(baseMessages, api.Message{
 				Role:    "system",
 				Content: system,
 			})
 		}
+	}
+	messages := slices.Clone(baseMessages)
+
+	{
+		fmt.Print("\u001b[92mYAA\u001b[0m: Getting the agent ready... ")
+		for range 3 {
+			resp, err := queryStruct[struct {
+				UA string `json:"ua"`
+			}](ctx, client, model, messages, "Generate an HTTP user-agent that includes your name.")
+
+			if err != nil {
+				logger.WithError(err).Debug("failed to request UA")
+			}
+			if resp.UA != "" {
+				tools.FetchUserAgent = resp.UA
+				logger.WithField("ua", resp.UA).Debug("set useragent")
+				break
+			}
+		}
+		fmt.Print("\u001b[2K\r")
+		fmt.Printf("\u001b[92mYAA\u001b[0m: Model: %v\n", model)
+		fmt.Printf("\u001b[92mYAA\u001b[0m: UA: %v\n", tools.FetchUserAgent)
+		fmt.Print("\u001b[92mYAA\u001b[0m: Reset history with !clear\n")
+		fmt.Println()
 	}
 
 	var output strings.Builder
@@ -57,9 +89,14 @@ func main() {
 				break
 			}
 
+			userContent := scanner.Text()
+			if userContent == "!clear" {
+				messages = slices.Clone(baseMessages)
+				continue
+			}
 			messages = append(messages, api.Message{
 				Role:    "user",
-				Content: scanner.Text(),
+				Content: userContent,
 			})
 		}
 		skipInput = false
@@ -147,4 +184,44 @@ func main() {
 			}
 		}
 	}
+}
+
+func queryStruct[T any](
+	ctx context.Context,
+	client *api.Client,
+	model string,
+	messages []api.Message,
+	request string,
+) (T, error) {
+	schema := tools.GenerateSchema[T]()
+	schemaStr, err := json.Marshal(schema)
+	if err != nil {
+		return *new(T), err
+	}
+
+	var resp api.ChatResponse
+	f := false
+	client.Chat(ctx, &api.ChatRequest{
+		Model: model,
+		Messages: append(slices.Clone(messages), api.Message{
+			Role:    "user",
+			Content: fmt.Sprintf("%v. Output your response following the JSON schema %v", request, schemaStr),
+		}),
+		Stream:    &f,
+		KeepAlive: &api.Duration{Duration: 10 * time.Minute},
+	}, func(cr api.ChatResponse) error {
+		resp = cr
+		return nil
+	})
+	endOfThoughts := strings.LastIndex(resp.Message.Content, "</think>")
+	if endOfThoughts != -1 {
+		resp.Message.Content = resp.Message.Content[endOfThoughts+len("</think>"):]
+	}
+	resp.Message.Content = strings.TrimSpace(resp.Message.Content)
+
+	var result T
+	if err := json.Unmarshal([]byte(resp.Message.Content), &result); err != nil {
+		return *new(T), err
+	}
+	return result, nil
 }

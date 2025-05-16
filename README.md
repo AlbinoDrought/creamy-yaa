@@ -39,6 +39,7 @@ Then, run this project: `go run main.go`
 
 ```sh
 # Values shown below are defaults
+export YAA_DEBUG="false" # Set to true for debug logs
 export OLLAMA_MODEL="qwen3:14b" # Model to use
 export OLLAMA_SYSTEM="" # System prompt to use
 export OLLAMA_HOST="http://127.0.0.1:11434" # If Ollama is running remotely, change this
