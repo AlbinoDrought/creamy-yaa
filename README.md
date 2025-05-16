@@ -54,6 +54,54 @@ Then, run this project: `go run main.go`
 >
 > Let me know if you'd like a specific time frame! 🌤️
 
+**Code Generation**
+
+> You: Write Golang code that runs a command. Follow the example at ./internal/tools/read_file.go
+>
+> Tool: read_file({"path":"./internal/tools/read_file.go"}) output 762 bytes
+>
+> Tool: list_files({"path":"./internal/tools","recursive":false}) output 117 bytes
+>
+> Agent: Here's a Golang tool implementation that runs a command, following the pattern from `read_file.go`:
+>
+> ```go
+> package tools
+>
+> import (
+> 	"os/exec"
+> 	"fmt"
+> )
+>
+> type RunCommandInput struct {
+> 	Command string `json:"command" jsonschema_description:"The command to execute."`
+> }
+>
+> func init() {
+> 	Register(ToolDefinition{
+> 		Name: "run_command",
+> 		Description: "Execute a given command and return its output.",
+> 		Parameters: GenerateSchema[RunCommandInput](),
+> 		Function: WithDecodedInput(func(val RunCommandInput) (string, error) {
+> 			cmd := exec.Command("sh", "-c", val.Command)
+> 			output, err := cmd.CombinedOutput()
+> 			if err != nil {
+> 				return string(output), fmt.Errorf("command failed: %w", err)
+> 			}
+> 			return string(output), nil
+> 		}),
+> 	})
+> }
+> ```
+>
+> This implementation:
+> 1. Takes a command string as input
+> 2. Executes it using `sh -c` (to handle shell syntax)
+> 3. Returns both standard output and standard error
+> 4. Returns a formatted error if the command fails
+> 5. Follows the same structure as the `read_file` tool
+>
+> To use this, save it as `run_command.go` in the `internal/tools` directory.
+
 ## Configuration
 
 ```sh
