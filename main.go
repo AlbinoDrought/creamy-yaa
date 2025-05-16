@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/ollama/ollama/api"
 	"github.com/sirupsen/logrus"
@@ -68,9 +69,10 @@ func main() {
 		agentFinishedThinking = false
 		pendingToolCalls := []api.ToolCall{}
 		err = client.Chat(ctx, &api.ChatRequest{
-			Model:    model,
-			Messages: messages,
-			Tools:    apiTools,
+			Model:     model,
+			Messages:  messages,
+			Tools:     apiTools,
+			KeepAlive: &api.Duration{Duration: 10 * time.Minute},
 		}, func(cr api.ChatResponse) error {
 			for _, toolCall := range cr.Message.ToolCalls {
 				pendingToolCalls = append(pendingToolCalls, toolCall)

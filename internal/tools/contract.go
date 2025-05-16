@@ -10,7 +10,7 @@ import (
 type ToolDefinition struct {
 	Name        string                                      `json:"name"`
 	Description string                                      `json:"description"`
-	Parameters  jsonschema.Schema                           `json:"parameters"`
+	Parameters  *jsonschema.Schema                          `json:"parameters"`
 	Function    func(toolCall api.ToolCall) (string, error) `json:"-"`
 }
 
@@ -31,7 +31,7 @@ func (def ToolDefinition) ToOllama() (api.Tool, error) {
 	}, nil
 }
 
-func GenerateSchema[T any]() jsonschema.Schema {
+func GenerateSchema[T any]() *jsonschema.Schema {
 	reflector := jsonschema.Reflector{
 		AllowAdditionalProperties: false,
 		DoNotReference:            true,
@@ -40,7 +40,7 @@ func GenerateSchema[T any]() jsonschema.Schema {
 
 	schema := reflector.Reflect(v)
 
-	return *schema
+	return schema
 }
 
 func WithDecodedInput[T any](fn func(val T) (string, error)) func(toolCall api.ToolCall) (string, error) {
