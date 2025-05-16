@@ -60,7 +60,7 @@ func main() {
 		for range 3 {
 			resp, err := queryStruct[struct {
 				UA string `json:"ua"`
-			}](ctx, client, model, messages, "Generate an HTTP user-agent that includes your name.")
+			}](ctx, client, model, messages, "Quickly generate an HTTP user-agent that includes your name.")
 
 			if err != nil {
 				logger.WithError(err).Debug("failed to request UA")
@@ -74,7 +74,7 @@ func main() {
 		fmt.Print("\u001b[2K\r")
 		fmt.Printf("\u001b[92mYAA\u001b[0m: Model: %v\n", model)
 		fmt.Printf("\u001b[92mYAA\u001b[0m: UA: %v\n", tools.FetchUserAgent)
-		fmt.Print("\u001b[92mYAA\u001b[0m: Reset history with !clear\n")
+		fmt.Print("\u001b[92mYAA\u001b[0m: Reset history with !clear, retry last prompt with !retry\n")
 		fmt.Println()
 	}
 
@@ -92,6 +92,16 @@ func main() {
 			userContent := scanner.Text()
 			if userContent == "!clear" {
 				messages = slices.Clone(baseMessages)
+				continue
+			}
+			if userContent == "!retry" {
+				for i := len(messages) - 1; i >= 0; i-- {
+					if messages[i].Role == "user" {
+						messages = messages[:i+1]
+						break
+					}
+				}
+				skipInput = true
 				continue
 			}
 			messages = append(messages, api.Message{
