@@ -12,6 +12,8 @@ Then, run this project: `go run main.go`
 
 ## Examples
 
+**Reading/Listing Files**
+
 > You: Summarize README.md
 >
 > Tool: list_files({"path":"."}) output 894 bytes
@@ -34,6 +36,23 @@ Then, run this project: `go run main.go`
 > Tool: read_file({"path":"LICENSE"}) output 7048 bytes
 >
 > Agent: The project is named **creamy-yaa** and uses the **CC0 1.0 Universal** license, which means the authors have waived all their rights to the work, dedicating it to the public domain. This allows anyone to freely use, modify, and distribute the project for any purpose (including commercial use) without needing permission or providing attribution. The license explicitly disclaims any copyright, related rights, or other restrictions.
+
+**Web Access**
+
+(I used a system prompt for these results)
+
+> You: What is the weather in Vancouver?
+>
+> Tool: fetch({"url":"https://geocoding-api.open-meteo.com/v1/search?name=Vancouver\u0026count=1\u0026language=en\u0026format=json"}) output 384 bytes
+>
+> Tool: fetch({"url":"https://api.open-meteo.com/v1/forecast?latitude=49.24966\u0026longitude=-123.11934\u0026current=temperature_2m,wind_speed_10m\u0026hourly=temperature_2m,relative_humidity_2m,wind_speed_10m"}) output 5721 bytes
+>
+> Agent: The current weather in Vancouver is **9.7°C** with winds at **8.4 km/h**. Here's a summary of the hourly forecast:
+>
+> - **Temperature**: Ranges from **7.6°C to 14.1°C** over the next 7 days, with a peak of **14.1°C** on May 22.
+> - **Wind**: Winds will gust up to **23.7 km/h** on May 22, but mostly remain below **15 km/h** otherwise.
+>
+> Let me know if you'd like a specific time frame! 🌤️
 
 ## Configuration
 
