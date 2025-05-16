@@ -54,7 +54,7 @@ Then, run this project: `go run main.go`
 >
 > Let me know if you'd like a specific time frame! 🌤️
 
-**Code Generation**
+**Code Generation: New Tool**
 
 > You: Write Golang code that runs a command. Follow the example at ./internal/tools/read_file.go
 >
@@ -101,6 +101,98 @@ Then, run this project: `go run main.go`
 > 5. Follows the same structure as the `read_file` tool
 >
 > To use this, save it as `run_command.go` in the `internal/tools` directory.
+
+**Code Generation: Bug Fix**
+
+> You: Fix ../creamy-nvr/main.go to also prune recordings from the in-memory recordings list
+>
+> Tool: read_file({"path":"../creamy-nvr/main.go"}) output 25993 bytes
+>
+> Agent: To ensure that the **in-memory recordings list** is pruned in sync with the **filesystem**, we need to modify the `prune` function in `main.go`. Specifically, after deleting a recording file from the filesystem, we must also remove the corresponding entry from the `recordings` slice.
+> 
+> ---
+> 
+> ### ✅ **What the Change Does**
+> 
+> - After each file is pruned (i.e., deleted from disk), the code will:
+>   1. Acquire a **write lock** on `recordingsLock` to safely modify the `recordings` slice.
+>   2. Iterate through the `recordings` slice to find the entry whose `Path` matches the deleted file.
+>   3. If found, remove it from the `recordings` slice.
+>   4. Unlock the mutex to allow concurrent access from other goroutines (e.g., the `saveRecording` channel).
+> 
+> This ensures that the **in-memory list** always reflects the **actual state of the filesystem**.
+> 
+> ---
+> 
+> ### 📄 **Patch to `prune` Function**
+> 
+> Add the following **code block** **after** the `os.Remove(path)` call in both the **"prune recordings by date"** and **"prune recordings by size"** sections of the `prune` function.
+> 
+> ```go
+> // After os.Remove(path) in both pruning sections:
+> recordingsLock.Lock()
+> defer recordingsLock.Unlock()
+> 
+> // Find and remove the recording from the in-memory list
+> for i, r := range recordings {
+>     if r.Path == path {
+>         recordings = append(recordings[:i], recordings[i+1:]...)
+>         break
+>     }
+> }
+> ```
+> 
+> ---
+> 
+> ### ✅ **Example: Prune Recordings by Date**
+> 
+> Here is the updated section of the `prune` function:
+> 
+> ```go
+> // prune recordings by date
+> if input.RecordingAgeLimitHours > 0 {
+>     target := time.Now().Add(-1 * time.Hour * time.Duration(input.RecordingAgeLimitHours))
+>     err := filepath.Walk(input.RecordingDirectory(), func(path string, info fs.FileInfo, err error) error {
+>         if err != nil {
+>             return err
+>         }
+>         if info.IsDir() {
+>             return nil
+>         }
+>         if (!strings.HasSuffix(path, ".mp4") && !strings.HasSuffix(path, ".mp4.jpg")) || !strings.Contains(path, input.ID) || len(path) <= 24 {
+>             return fmt.Errorf("unexpected file found in recording directory: %v", path)
+>         }
+> 
+>         recordingDate, err := parseRecordingTime(path)
+>         if err != nil {
+>             return fmt.Errorf("failed to parse time from path %v: %v", path, err)
+>         }
+> 
+>         if recordingDate.After(target) {
+>             return filepath.SkipAll // we have reduced enough storage already
+>         }
+> 
+>         if err := os.Remove(path); err != nil {
+>             return fmt.Errorf("failed pruning recording at %v: %v", path, err)
+>         }
+>         logger.WithField("path", path).WithField("input", input.ID).Debug("pruned recording due to date")
+> 
+>         // ✅ Add this block to remove from in-memory list
+>         recordingsLock.Lock()
+>         defer recordingsLock.Unlock()
+> 
+>         for i, r := range recordings {
+>             if r.Path == path {
+>                 recordings = append(recordings[:i], recordings[i+1:]...)
+>                 break
+>             }
+>         }
+>     })
+>     ...
+> }
+> ```
+
+See [creamy-nvr#26ed64](https://github.com/AlbinoDrought/creamy-nvr/commit/26ed6492e85c8352ab4d4c713b95ee165fabe97d)
 
 ## Configuration
 
